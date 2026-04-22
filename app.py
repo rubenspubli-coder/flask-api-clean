@@ -1,15 +1,10 @@
-import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_file
 
 app = Flask(__name__)
 
 @app.route("/")
-def debug_root():
-    return {
-        "cwd": os.getcwd(),
-        "files_root": os.listdir("."),
-        "files_frontend": os.listdir("frontend") if os.path.exists("frontend") else "no frontend folder"
-    }
+def serve_frontend():
+    return send_file("frontend/index.html")
 
 @app.route("/api/hello")
 def hello():
