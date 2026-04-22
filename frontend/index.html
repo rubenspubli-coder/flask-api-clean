@@ -1010,43 +1010,47 @@ document.addEventListener('paste', function(e) {
 });
 
 /* ── SEND ── */
-let selectedAngle = null;
+async function send() {
+  const text = ti.value.trim();
+  if (!text) return;
 
-function toggleAngles() {
-  const ap = document.getElementById('angles-panel');
-  const btn = document.getElementById('btn-angles');
-  const isOpen = ap.classList.toggle('open');
-  btn.classList.toggle('active-menu', isOpen);
+  ti.value = '';
+
+  addMsg('user', text);
+
+  history.push({
+    role: "user",
+    content: text
+  });
+
+  const loading = addMsg('bot', '', true);
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history })
+    });
+
+    const data = await res.json();
+
+    loading.remove();
+
+    const reply = data.content?.[0]?.text || "Erro";
+
+    addMsg('bot', reply);
+
+    history.push({
+      role: "assistant",
+      content: reply
+    });
+
+  } catch (err) {
+    loading.remove();
+    addMsg('bot', 'Erro ao conectar com servidor');
+    console.error(err);
+  }
 }
-
-function toggleAngleDropdown() {
-  const dd = document.getElementById('angle-dropdown');
-  const btn = document.getElementById('angle-inline-btn');
-  const isOpen = dd.classList.toggle('open');
-  btn.style.borderColor = isOpen ? 'var(--green)' : '';
-}
-
-function selectAngle(card) {
-  document.querySelectorAll('.ag-card').forEach(c => c.classList.remove('sel'));
-  card.classList.add('sel');
-  selectedAngle = card.getAttribute('data-angle');
-  const lbl = card.querySelector('.ag-name').textContent.trim().replace('\n',' ');
-  document.getElementById('angle-chip-txt').textContent = '📐 ' + lbl;
-  document.getElementById('angle-chip').classList.add('on');
-  document.getElementById('angle-inline-btn').classList.add('sel');
-  document.getElementById('angles-panel').classList.remove('open');
-  document.getElementById('btn-angles').classList.remove('active-menu');
-  document.getElementById('angle-dropdown').classList.remove('open');
-  document.getElementById('angle-inline-btn').style.borderColor = '';
-}
-
-function clearAngle() {
-  selectedAngle = null;
-  document.querySelectorAll('.ag-card').forEach(c => c.classList.remove('sel'));
-  document.getElementById('angle-chip').classList.remove('on');
-  document.getElementById('angle-inline-btn').classList.remove('sel');
-}
-
 /* ── RATIO ── */
 let selectedRatio = null;
 
@@ -1307,35 +1311,28 @@ function fmtStream(text) {
 }
 
 /* ── BOOT — senha só na primeira vez ── */
-let globalAuthenticated = false;
-try { globalAuthenticated = sessionStorage.getItem('ss_auth') === '1'; } catch(e) {}
-
 async function boot() {
-  if (initialized) return; initialized = true; sb_btn.disabled = true;
+  if (initialized) return;
 
-  // Se já autenticado nessa sessão, começa direto sem pedir senha
-  if (globalAuthenticated) {
-    addMsg('bot', 'Vamos nessa! Descreva o que você deseja criar e use o botão de imagem para anexar a foto do atleta de referência.');
-    sb_btn.disabled = false;
-    return;
-  }
+  initialized = true;
 
-  // Primeira vez: pede a senha normalmente via API
-  const t = addMsg('bot','',true);
-  try {
-    const res = await fetch('/api/chat', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:80,system:SYSTEM_PROMPT,messages:[{role:'user',content:'start'}]})
-    });
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || 'Bem-vindo ao Sports Studio, onde a mágica acontece! Digite a senha de acesso:';
-    history.push({role:'user',content:'start'}); history.push({role:'assistant',content:reply});
-    t.remove(); addMsg('bot', reply);
-  } catch {
-    t.remove(); addMsg('bot','Bem-vindo ao Sports Studio, onde a mágica acontece! Digite a senha de acesso:');
-  }
-  sb_btn.disabled=false;
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "start" }]
+    })
+  });
+
+  const data = await res.json();
+  const reply = data.content?.[0]?.text || "";
+
+  addMsg('bot', reply);
+
+  history.push({
+    role: "assistant",
+    content: reply
+  });
 }
 
 // Intercepta resposta da API para detectar autenticação bem-sucedida
