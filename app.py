@@ -15,86 +15,96 @@ def serve_frontend():
 # =========================
 import os
 import requests
-from flask import Response
-import json
+from flask import Flask, request, jsonify, send_file
 
+app = Flask(__name__)
+
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# =========================
+# FRONTEND
+# =========================
+@app.route("/")
+def serve_frontend():
+    return send_file("frontend/index.html")
+
+
+# =========================
+# API CHAT
+# =========================
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    data = request.get_json()
+    messages = data.get("messages", [])
+
+    last_user = ""
+    if messages:
+        last = messages[-1]
+        if isinstance(last.get("content"), str):
+            last_user = last["content"]
+
+    # BOOT
+    if last_user == "start":
+        return jsonify({
+            "content": [{"text": "Bem-vindo ao Sports Studio, onde a mágica acontece! Digite a senha de acesso:"}]
+        })
+
+    # SENHA
+    if last_user.strip().lower() == "pablo":
+        return jsonify({
+            "content": [{"text": "Vamos nessa! Agora descreva o que você deseja criar e use o botão de imagem para anexar a foto do atleta de referência."}]
+        })
+
+    # =========================
+    # CHAMADA REAL DO CLAUDE
+    # =========================
     try:
-        data = request.get_json()
-        messages = data.get("messages", [])
-
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-
-        last_user = ""
-        if messages:
-            last = messages[-1]
-            if isinstance(last.get("content"), str):
-                last_user = last["content"]
-
-        # verifica se já autenticou
-        authenticated = any(
-            isinstance(m.get("content"), str) and m["content"].strip().lower() == "pablo"
-            for m in messages
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-3-haiku-20240307",
+                "max_tokens": 1000,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": last_user
+                    }
+                ]
+            }
         )
 
-        # fluxo
-        if last_user == "start":
-            text = "Bem-vindo ao Sports Studio, onde a mágica acontece! Digite a senha de acesso:"
+        result = response.json()
 
-        elif not authenticated:
-            if last_user.strip().lower() == "pablo":
-                text = "Vamos nessa! Agora descreva o que você deseja criar e use o botão de imagem para anexar a foto do atleta de referência."
-            else:
-                text = "Senha incorreta."
+        text = result.get("content", [{}])[0].get("text", "Erro ao gerar resposta.")
 
-        else:
-            # 🔥 se não tiver API key, evita crash
-            if not api_key:
-                text = "ERRO: API KEY não configurada no Railway"
-            else:
-                response = requests.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": api_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json"
-                    },
-                    json={
-                        "model": "claude-3-haiku-20240307",
-                        "max_tokens": 2000,
-                        "messages": messages,
-                        "system": data.get("system", "")
-                    }
-                )
-
-                res_json = response.json()
-
-                # 🔥 evita crash se API responder erro
-                if "content" in res_json:
-                    text = res_json["content"][0]["text"]
-                else:
-                    text = f"Erro Claude: {res_json}"
-
-        def generate():
-            chunk = {
-                "type": "content_block_delta",
-                "delta": {
-                    "type": "text_delta",
-                    "text": text
-                }
-            }
-            yield f"data: {json.dumps(chunk)}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return Response(generate(), mimetype="text/event-stream")
+        return jsonify({
+            "content": [{"text": text}]
+        })
 
     except Exception as e:
-        return Response(
-            f"data: {json.dumps({'type':'content_block_delta','delta':{'type':'text_delta','text':str(e)}})}\n\n"
-            "data: [DONE]\n\n",
-            mimetype="text/event-stream"
-        )
+        return jsonify({
+            "content": [{"text": f"Erro Claude: {str(e)}"}]
+        })
+
+
+# =========================
+# DEBUG
+# =========================
+@app.route("/debug")
+def debug():
+    return {"status": "ok"}
+
+
+# =========================
+# START
+# =========================
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=3000)
 
 # =========================
 # START
