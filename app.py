@@ -15,6 +15,9 @@ def serve_frontend():
 # =========================
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    from flask import Response
+    import json
+
     data = request.get_json()
     messages = data.get("messages", [])
 
@@ -24,34 +27,26 @@ def chat():
         if isinstance(last.get("content"), str):
             last_user = last["content"]
 
-    # PRIMEIRA MENSAGEM (boot)
+    # lógica de resposta
     if last_user == "start":
-        return jsonify({
-            "content": [
-                {
-                    "text": "Bem-vindo ao Sports Studio, onde a mágica acontece! Digite a senha de acesso:"
-                }
-            ]
-        })
+        text = "Bem-vindo ao Sports Studio, onde a mágica acontece! Digite a senha de acesso:"
+    elif last_user.strip().lower() == "pablo":
+        text = "Vamos nessa! Agora descreva o que você deseja criar e use o botão de imagem para anexar a foto do atleta de referência."
+    else:
+        text = "Senha incorreta."
 
-    # SENHA CORRETA
-    if last_user.strip().lower() == "pablo":
-        return jsonify({
-            "content": [
-                {
-                    "text": "Vamos nessa! Agora descreva o que você deseja criar e use o botão de imagem para anexar a foto do atleta de referência."
-                }
-            ]
-        })
-
-    # SENHA ERRADA
-    return jsonify({
-        "content": [
-            {
-                "text": "Senha incorreta."
+    def generate():
+        chunk = {
+            "type": "content_block_delta",
+            "delta": {
+                "type": "text_delta",
+                "text": text
             }
-        ]
-    })
+        }
+        yield f"data: {json.dumps(chunk)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return Response(generate(), mimetype="text/event-stream")
 
 
 # =========================
