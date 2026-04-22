@@ -5,7 +5,8 @@ app = Flask(__name__)
 
 @app.route("/")
 def serve_frontend():
-    path = os.path.abspath(os.path.join(os.getcwd(), "..", "frontend", "index.html"))
+    base_dir = os.path.dirname(__file__)
+    path = os.path.abspath(os.path.join(base_dir, "..", "frontend", "index.html"))
     return send_file(path)
 
 @app.route("/api/hello")
