@@ -1,11 +1,11 @@
-from flask import Flask, jsonify, send_from_directory
 import os
+from flask import Flask, jsonify, send_file
 
-app = Flask(__name__, static_folder="../frontend", static_url_path="")
+app = Flask(__name__)
 
 @app.route("/")
 def serve_frontend():
-    return send_from_directory(app.static_folder, "index.html")
+    return send_file("frontend/index.html")
 
 @app.route("/api/hello")
 def hello():
